@@ -8,7 +8,8 @@
     "market":      { ".read": "auth != null", ".write": "auth != null && auth.token.email === '26004@sshs.hs.kr'" },
     "news":        { ".read": "auth != null", ".write": "auth != null && auth.token.email === '26004@sshs.hs.kr'" },
     "leaderboard": { ".read": "auth != null", ".write": "auth != null && auth.token.email === '26004@sshs.hs.kr'" },
-    "quiz":        { ".read": "auth != null", ".write": "auth != null && auth.token.email === '26004@sshs.hs.kr'" },
+    "problems":    { ".read": "auth != null", ".write": "auth != null && auth.token.email === '26004@sshs.hs.kr'" },
+    "tour":        { ".read": "auth != null", ".write": "auth != null && auth.token.email === '26004@sshs.hs.kr'" },
     "arena":       { ".read": "auth != null", ".write": "auth != null && auth.token.email === '26004@sshs.hs.kr'" },
 
     "players": {

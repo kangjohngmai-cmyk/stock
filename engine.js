@@ -29,14 +29,14 @@ export class Engine {
   async boot() {
     fb.offset(v => { this.offset = v; });
     await new Promise(r => setTimeout(r, 400));
-    const [snap, players] = await Promise.all([fb.get('admin/engine'), fb.get('players')]);
+    const [snap, players, teams] = await Promise.all([fb.get('admin/engine'), fb.get('players'), fb.get('admin/teams')]);
     if (snap) {
-      try { this.g.restore(snap, players || {}); }
+      try { this.g.restore(snap, players || {}, teams || {}); }
       catch (e) { console.error('복구 실패, 새로 시작', e); this.g = new Game(); }
     } else {
       this.g = new Game();
       // 이전 엔진 기록 없이 참가자만 남아 있으면 그대로 살림
-      if (players) this.g.restore(this.g.serialize(), players);
+      if (players || teams) this.g.restore(this.g.serialize(), players || {}, teams || {});
     }
     await fb.set('admin/lock', { id: this.lockId, t: this.now() });
     this.running = true;
@@ -97,12 +97,15 @@ export class Engine {
     const up = {};
     if (all) {
       for (const uid in g.players) o.players.add(uid);
-      o.prices = o.game = o.cfg = o.arena = o.quiz = true;
+      for (const tid in g.teams) o.teams.add(tid);
+      o.prices = o.game = o.cfg = o.arena = o.probs = o.tour = true;
       g.updateLeaderboard(now);
       const o2 = g.drain();
-      o.lb = o2.lb; o.inbox.push(...o2.inbox); for (const u of o2.players) o.players.add(u);
+      o.lb = o2.lb; o.inbox.push(...o2.inbox); for (const u of o2.players) o.players.add(u); for (const t of o2.teams) o.teams.add(t);
     }
     for (const uid of o.players) if (g.players[uid]) up['players/' + uid] = g.publicPlayer(uid);
+    for (const tid of o.teams) if (g.teams[tid]) up['admin/teams/' + tid] = g.storedTeam(g.teams[tid]);
+    if (o.tour) up['tour'] = g.publicTour();
     for (const { uid, m } of o.inbox) up['inbox/' + uid + '/' + fb.newKey('inbox/' + uid)] = { ...m, t: now };
     if (o.prices) {
       const p = g.roundedPrices(), open = {};
@@ -112,8 +115,7 @@ export class Engine {
     for (const h of o.hist) up['market/hist/' + fb.newKey('market/hist')] = h;
     for (const n of o.news) up['news/' + fb.newKey('news')] = n;
     if (o.lb) up['leaderboard'] = o.lb;
-    if (o.quiz) up['quiz/current'] = g.publicQuiz();
-    if (o.quizLast) up['quiz/last'] = o.quizLast;
+    if (o.probs) up['problems'] = { list: g.publicProblems(), tries: g.cfg.probTries, last: g.lastRelease || null };
     if (o.arena) up['arena'] = g.publicArena();
     if (o.game) up['game'] = g.game;
     if (o.cfg) up['config'] = g.cfg;
@@ -132,32 +134,34 @@ export class Engine {
   end() { return this.act(n => this.g.end(n)); }
   setCfg(patch) { return this.act(n => this.g.setCfg(patch, n)); }
   news(s, dir, strength, text) { return this.act(n => this.g.manualNews(s, dir, strength, text, n)); }
-  startQuiz(idx) { return this.act(n => this.g.startQuiz(idx, n)); }
-  closeQuiz() { return this.act(() => this.g.closeQuiz()); }
-  setQuizzes(list) { this.g.quizzes = list; if (this.g.quizIdx > list.length) this.g.quizIdx = list.length; this.save(); this.onUpdate(); }
-  setQuizIdx(i) { this.g.quizIdx = Math.max(0, Math.min(this.g.quizzes.length, i)); this.save(); this.onUpdate(); }
-  grant(uid, item) {
-    const p = this.g.players[uid]; if (!p) return;
-    return this.act(() => { p.items[item] = (p.items[item] || 0) + 1; this.g.dirty(uid); this.g.msg(uid, '🎁 운영자가 아이템을 줬어!', 'item'); });
+  release(id) { return this.act(n => this.g.releaseProblem(id, n)); }
+  setProblems(list) { return this.act(() => this.g.setProblems(list)); }
+  startTournament() { return this.act(n => this.g.startTournament(n)); }
+  endRoundNow() { return this.act(n => this.g.endRound(n)); }
+  grant(tid, item) {
+    const t = this.g.teams[tid]; if (!t) return;
+    return this.act(() => { t.items[item] = (t.items[item] || 0) + 1; this.g.teamLog(t, '🎁 운영자 선물'); this.g.dirtyTeam(tid); this.g.msgTeam(tid, '🎁 운영자가 팀에 아이템을 줬어!', 'item'); });
   }
-  revive(uid) {
-    const p = this.g.players[uid]; if (!p || p.status !== 'out') return;
-    return this.act(() => { p.status = 'active'; p.cash = Math.max(p.cash, 0); this.g.dirty(uid); this.g.msg(uid, '✨ 운영자가 부활시켜 줬어!', 'good'); });
+  revive(tid) {
+    const t = this.g.teams[tid]; if (!t || t.status !== 'out') return;
+    return this.act(() => { t.status = 'active'; t.cash = Math.max(t.cash, 0); this.g.teamLog(t, '✨ 운영자가 부활시킴'); this.g.dirtyTeam(tid); this.g.msgTeam(tid, '✨ 운영자가 팀을 부활시켜 줬어!', 'good'); });
   }
   kick(uid) {
     const p = this.g.players[uid]; if (!p) return;
+    const t = this.g.teams[p.team];
     this.g.queue = this.g.queue.filter(u => u !== uid);
     delete this.g.players[uid];
+    if (t) { t.members = t.members.filter(u => u !== uid); this.g.dirtyTeam(t.id); }
     fb.remove('players/' + uid); this.flush(); this.save();
   }
 
   async resetAll() {
     this.running = false;
-    const keep = { cfg: this.g.cfg, quizzes: this.g.quizzes };
-    await fb.update({ players: null, inbox: null, requests: null, news: null, 'market/hist': null, arena: null, quiz: null, leaderboard: null });
+    const keep = { cfg: this.g.cfg, problems: this.g.problems.map(p => ({ ...p, solvedBy: {} })) };
+    await fb.update({ players: null, inbox: null, requests: null, news: null, 'market/hist': null, arena: null, problems: null, leaderboard: null, tour: null, 'admin/teams': null });
     this.g = new Game();
     this.g.cfg = { ...this.g.cfg, ...keep.cfg };
-    this.g.quizzes = keep.quizzes;
+    this.g.problems = keep.problems;
     this.running = true;
     this.flush(true);
     await this.save();

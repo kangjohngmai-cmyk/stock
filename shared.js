@@ -18,22 +18,22 @@ export const ITEMS = {
   shield: { icon: '🛡️', name: '손실 방지', desc: '켜 두면, 다음에 손해 보면서 팔 때 1번은 본전(평균 매수가)으로 팔려.' },
   double: { icon: '✖️2', name: '수익 2배', desc: '켜 두면, 다음에 이익 보면서 팔 때 1번은 수익이 2배가 돼.' },
   feefree: { icon: '💸', name: '수수료 면제', desc: '3분 동안 매수·매도 수수료가 0원.' },
-  preview: { icon: '📰', name: '속보 미리보기', desc: '다음 정기 속보 내용과 발표 시간을 먼저 알려줘.' },
-  swap: { icon: '🔄', name: '자산 교환', desc: '내 현금+주식 전부가 무작위 참가자 1명의 것과 통째로 바뀌어. 도박!' },
+  preview: { icon: '📰', name: '속보 미리보기', desc: '다음 정기 속보 내용과 발표 시간을 팀 전원에게 먼저 알려줘.' },
+  swap: { icon: '🔄', name: '수익률 교환', desc: '무작위 다른 팀과 수익률을 맞바꿔 (상대 포트폴리오를 우리 팀 규모에 맞춰서 받아). 도박!' },
 };
 export const ITEM_WEIGHTS = { shield: 25, double: 20, feefree: 20, preview: 20, swap: 15 };
 
 export const DEFAULT_CFG = {
-  startCash: 1000000,
+  startCash: 1000000,   // 팀원 1명당 팀에 들어오는 돈
   feeRate: 0.005,       // 수수료 0.5%
-  creditLimit: 1000000, // 현금은 이만큼 마이너스까지 가능(빚)
-  outLine: -500000,     // 총자산이 이 이하면 파산
+  creditLimit: 1000000, // 팀원 1명당 빚 한도 (팀 현금이 이만큼×인원 마이너스까지 가능)
+  outLine: -500000,     // 팀원 1명당 파산 기준 (팀 총자산이 이 값×인원 이하면 파산)
+  maxTeams: 20,         // 팀 번호 1~maxTeams
+  tourRoundMin: 0,      // 토너먼트 라운드 길이(분), 0이면 남은 시간에 맞춰 자동
+  duelStealPct: 50,     // 결투 승리 시 가져오는 돈: 진 사람 몫(팀 재산÷팀원 수)의 몇 %
   durationMin: 60,
   newsEveryMin: 4,
-  quizEveryMin: 6,
-  quizSec: 40,
-  quizMode: 'all',      // 'all' 정답자 전원 / 'first' 선착순
-  quizTopN: 10,
+  probTries: 3,         // 문제 범위마다 팀당 시도 횟수
   impactScale: 1,       // 거래량 영향 배율의 역수(클수록 덜 흔들림)
   duelRoundSec: 20,
   rewardSec: 30,
@@ -75,10 +75,22 @@ export function worthOf(player, prices) {
   return w;
 }
 
+// 정답 비교용 정규화: 공백·쉼표 무시, 대소문자 무시.
+// 정수는 문자열로 비교해서 아주 큰 수(2^53 넘는 수)도 정확하게 비교함. 1024 = 1024.0 = +1024 = 001024
 export function normAns(a) {
-  const s = String(a ?? '').trim().toLowerCase().replace(/\s+/g, '').replace(/,/g, '');
+  let s = String(a ?? '').trim().toLowerCase().replace(/\s+/g, '').replace(/,/g, '');
+  if (s === '') return 's:';
+  const im = s.match(/^([+-]?)0*(\d+)$/);
+  if (im) { const d = im[2] || '0'; return 'i:' + (im[1] === '-' && d !== '0' ? '-' : '') + d; }
+  const dm = s.match(/^([+-]?)0*(\d*)\.(\d*?)0*$/);
+  if (dm && (dm[2] || dm[3])) {
+    if (!dm[3]) { const d = dm[2] || '0'; return 'i:' + (dm[1] === '-' && d !== '0' ? '-' : '') + d; }
+  }
   const n = Number(s);
-  if (s !== '' && Number.isFinite(n)) return 'n:' + n;
+  if (Number.isFinite(n) && /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/.test(s)) {
+    if (Number.isInteger(n) && Math.abs(n) < 2 ** 53) return 'i:' + String(n);
+    return 'n:' + n;
+  }
   return 's:' + s;
 }
 
@@ -86,29 +98,59 @@ export const won = (n) => (Math.round(n) || 0).toLocaleString('ko-KR');
 export const signed = (n) => (n > 0 ? '+' : '') + won(n);
 export const pct = (x) => (x > 0 ? '+' : '') + (x * 100).toFixed(2) + '%';
 
-// 퀴즈 텍스트 파싱
-// Q: 문제
-// O: 보기1 | 보기2 | 보기3   (선택, 있으면 객관식 → A는 번호)
-// A: 정답   (주관식은 A: 를 여러 줄 써서 정답 여러 개 허용)
-export function parseQuizzes(text) {
+// ---------- 문제 텍스트 파싱 ----------
+// T: 제목            (선택)
+// Q: 문제 본문        (여기부터 다음 P/O/A 줄 전까지 전부 본문, 빈 줄도 OK)
+// P: 1 ≤ N ≤ 100    (범위/부분 문제 이름. 없으면 범위 1개짜리 문제)
+// A: 정답            (A: 를 여러 줄 쓰면 정답 여러 개 인정)
+// O: 보기1 | 보기2   (객관식이면, 그 범위의 A는 정답 번호)
+// 다음 T: 나 Q: 가 나오면 새 문제
+function hashStr(s) { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; return h.toString(36); }
+
+export function parseProblems(text) {
   const out = [], errs = [];
-  const blocks = String(text || '').replace(/\r/g, '').split(/\n\s*\n/);
-  blocks.forEach((b, bi) => {
-    const lines = b.split('\n').map(l => l.trim()).filter(Boolean);
-    if (!lines.length) return;
-    let q = '', opts = null; const ans = [];
-    for (const l of lines) {
-      const m = l.match(/^([QOAqoa])\s*[:：]\s*(.*)$/);
-      if (!m) { if (q && !opts && !ans.length) q += '\n' + l; continue; }
-      const k = m[1].toUpperCase(), v = m[2].trim();
-      if (k === 'Q') q = v; else if (k === 'O') opts = v.split('|').map(s => s.trim()).filter(Boolean); else ans.push(v);
+  const lines = String(text || '').replace(/\r/g, '').split('\n');
+  let cur = null, part = null;
+  const flush = () => { if (cur && (cur.body || cur.title || cur.parts.length)) out.push(cur); cur = null; part = null; };
+  const ensure = () => { if (!cur) cur = { title: '', body: '', parts: [], inBody: false }; };
+  for (const raw of lines) {
+    const m = raw.match(/^\s*([TQPOAtqpoa])\s*[:：]\s?(.*)$/);
+    if (!m) { if (cur && cur.inBody) cur.body += '\n' + raw.replace(/\s+$/, ''); continue; }
+    const k = m[1].toUpperCase(), v = m[2].trim();
+    if (k === 'T') { if (cur && (cur.body || cur.parts.length)) flush(); ensure(); cur.title = v; continue; }
+    if (k === 'Q') { if (cur && (cur.body || cur.parts.length)) flush(); ensure(); cur.body = v; cur.inBody = true; continue; }
+    ensure(); cur.inBody = false;
+    if (k === 'P') { part = { label: v || ('범위 ' + (cur.parts.length + 1)), ans: [], opts: null }; cur.parts.push(part); continue; }
+    if (!part) { part = { label: '정답', ans: [], opts: null }; cur.parts.push(part); }
+    if (k === 'O') part.opts = v.split('|').map(x => x.trim()).filter(Boolean);
+    else if (k === 'A') part.ans.push(v);
+  }
+  flush();
+  const res = [];
+  out.forEach((p, i) => {
+    const name = `${i + 1}번째 문제`;
+    p.body = p.body.replace(/\n+$/, '').trim();
+    if (!p.body) { errs.push(`${name}: Q: 본문이 없어`); return; }
+    if (!p.parts.length) { errs.push(`${name}: A: 정답이 없어`); return; }
+    const parts = [];
+    for (const pt of p.parts) {
+      if (!pt.ans.length) { errs.push(`${name} "${pt.label}": A: 정답이 없어`); return; }
+      if (pt.opts) {
+        const n = parseInt(pt.ans[0], 10);
+        if (!(n >= 1 && n <= pt.opts.length)) { errs.push(`${name} "${pt.label}": 객관식 정답은 1~${pt.opts.length} 번호로 써줘`); return; }
+        parts.push({ label: pt.label, opts: pt.opts, ans: n - 1 });
+      } else parts.push({ label: pt.label, opts: null, ans: pt.ans });
     }
-    if (!q || !ans.length) { errs.push(`${bi + 1}번째 문제: Q 또는 A가 없어`); return; }
-    if (opts) {
-      const n = parseInt(ans[0], 10);
-      if (!(n >= 1 && n <= opts.length)) { errs.push(`${bi + 1}번째 문제: 객관식 정답은 1~${opts.length} 번호로 써줘`); return; }
-      out.push({ q, opts, ans: n - 1 });
-    } else out.push({ q, opts: null, ans: ans.length === 1 ? ans[0] : ans });
+    const title = p.title || (p.body.split('\n')[0].slice(0, 24) + (p.body.length > 24 ? '…' : ''));
+    res.push({ id: 'p' + hashStr(title + '\u0001' + p.body), title, body: p.body, parts });
   });
-  return { quizzes: out, errs };
+  // 같은 문제가 두 번 들어간 경우 id 겹치지 않게
+  const seen = {};
+  for (const p of res) { if (seen[p.id]) p.id += '_' + (++seen[p.id]); else seen[p.id] = 1; }
+  return { problems: res, errs };
+}
+
+export function checkAnswer(part, a) {
+  if (part.opts) return String(a) === String(part.ans);
+  return [].concat(part.ans).some(x => normAns(x) === normAns(a));
 }

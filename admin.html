@@ -83,8 +83,8 @@
       <div class="stat" style="margin-top:6px">
         <span>상태 <b id="stStatus">-</b></span>
         <span>남은 시간 <b id="stTime" class="num">-</b></span>
-        <span>참가자 <b id="stPlayers" class="num">0</b></span>
-        <span>파산 <b id="stOut" class="num">0</b></span>
+        <span>참가 <b id="stPlayers" class="num">0</b></span>
+        <span>파산 팀 <b id="stOut" class="num">0</b></span>
         <span>처리한 요청 <b id="stReq" class="num">0</b></span>
         <span id="stConn"></span>
       </div>
@@ -115,23 +115,34 @@
       <div class="muted small" style="margin-top:10px" id="nextNews">-</div>
     </div>
 
-    <!-- 퀴즈 -->
+    <!-- 문제 -->
     <div class="card">
-      <h2>🧠 퀴즈 <span class="small muted" id="quizInfo"></span></h2>
-      <div id="quizLive" class="hidden alert info" style="margin:0 0 10px"></div>
+      <h2>📝 문제 <span class="small muted" id="probInfo"></span></h2>
       <div class="row">
-        <button class="btn gold" id="bQuizNext">다음 퀴즈 출제</button>
-        <button class="btn" id="bQuizClose">진행 중 퀴즈 마감</button>
+        <button class="btn gold" id="bProbNext">다음 문제 공개</button>
       </div>
-      <div class="muted small" id="nextQuiz" style="margin-bottom:8px">-</div>
-      <div class="scroll" style="max-height:220px" id="quizList"></div>
+      <p class="muted small" style="margin:0 0 8px;line-height:1.6">공개한 문제는 게임이 끝날 때까지 계속 풀 수 있어 (제한시간 없음). 범위 하나 풀 때마다 그 팀에 아이템 1개. 범위마다 팀당 <b id="probTriesTxt">3</b>번까지.</p>
+      <div class="scroll" style="max-height:300px" id="probAdminList"></div>
       <details style="margin-top:10px">
-        <summary class="small" style="cursor:pointer;font-weight:700">✏️ 퀴즈 입력/수정</summary>
-        <p class="muted small" style="line-height:1.6">문제마다 빈 줄로 구분해줘.<br><b>Q:</b> 문제 &nbsp; <b>A:</b> 정답 (주관식은 A: 줄을 여러 개 쓰면 정답 여러 개 인정)<br>객관식은 <b>O:</b> 보기1 | 보기2 | 보기3 줄을 넣고 A: 에 정답 번호. 숫자 정답은 1,000 / 1000 / 1000.0 다 정답 처리돼.</p>
-        <textarea id="quizText" rows="10" placeholder="Q: 2^10은?&#10;A: 1024&#10;&#10;Q: 물의 화학식은?&#10;O: CO2 | H2O | NaCl&#10;A: 2"></textarea>
-        <div class="row" style="margin-top:8px"><button class="btn primary" id="bQuizSave">저장</button></div>
-        <div id="quizErr" class="small" style="color:var(--up)"></div>
+        <summary class="small" style="cursor:pointer;font-weight:700">✏️ 문제 입력/수정</summary>
+        <div class="muted small" style="line-height:1.7;margin:8px 0">
+          <b>T:</b> 제목 (선택) &nbsp; <b>Q:</b> 본문 — 다음 P/O/A 줄 전까지 전부 본문 (빈 줄·여러 줄 OK)<br>
+          <b>P:</b> 범위 이름 (예: 1 ≤ N ≤ 100) &nbsp; <b>A:</b> 그 범위 정답 (A: 여러 줄 = 정답 여러 개 인정)<br>
+          범위 없이 <b>A:</b>만 쓰면 범위 1개짜리 문제 · 객관식은 <b>O:</b> 보기1 | 보기2 | 보기3 + <b>A:</b> 정답 번호<br>
+          다음 <b>T:</b> 나 <b>Q:</b> 가 나오면 새 문제. 숫자는 1,024 = 1024 = 1024.0, 아주 큰 정수도 정확히 비교해.<br>
+          ⚠️ 이미 공개한 문제의 제목·본문을 고치면 그 문제는 새 문제로 취급돼 (팀 진행 기록 초기화)
+        </div>
+        <textarea id="probText" rows="14" style="font-family:ui-monospace,monospace;font-size:13px" placeholder="T: 1부터 N까지의 합&#10;Q: 1부터 N까지 모든 정수의 합을 구하시오.&#10;&#10;입력: N&#10;출력: 합&#10;P: N = 100&#10;A: 5050&#10;P: N = 1,000,000,000&#10;A: 500000000500000000&#10;&#10;T: 화학&#10;Q: 물의 화학식은?&#10;O: CO2 | H2O | NaCl&#10;A: 2"></textarea>
+        <div class="row" style="margin-top:8px"><button class="btn primary" id="bProbSave">저장</button></div>
+        <div id="probErr" class="small" style="color:var(--up)"></div>
       </details>
+    </div>
+
+    <!-- 토너먼트 -->
+    <div class="card">
+      <h2>🏟 토너먼트 <span class="ctl"><button class="btn gold tiny" id="bTour">토너먼트 시작</button><button class="btn tiny" id="bRoundEnd">이번 라운드 지금 끝내기</button></span></h2>
+      <p class="muted small" style="margin:0 0 8px;line-height:1.6">랜덤 대진으로 두 팀씩 붙어서, 그 라운드 동안 <b style="color:var(--text)">수익률이 더 오른 팀</b>이 올라가. 홀수면 한 팀 부전승. 라운드가 끝나면 다음 라운드가 바로 시작돼.</p>
+      <div id="tourInfo"></div>
     </div>
 
     <!-- 시세 -->
@@ -144,22 +155,20 @@
     <div class="card">
       <h2>⚙️ 설정</h2>
       <div class="row">
-        <div><label class="f">시작 자금(원)</label><input id="c_startCash" type="number"></div>
+        <div><label class="f">시작 자금 (팀원 1명당, 원)</label><input id="c_startCash" type="number"></div>
         <div><label class="f">게임 시간(분)</label><input id="c_durationMin" type="number"></div>
+        <div><label class="f">팀 번호 최대</label><input id="c_maxTeams" type="number"></div>
       </div>
       <div class="row">
         <div><label class="f">수수료(%)</label><input id="c_feeRate" type="number" step="0.1"></div>
-        <div><label class="f">빚 한도(원)</label><input id="c_creditLimit" type="number"></div>
-        <div><label class="f">파산 기준 총자산(원)</label><input id="c_outLine" type="number"></div>
+        <div><label class="f">빚 한도 (1명당, 원)</label><input id="c_creditLimit" type="number"></div>
+        <div><label class="f">파산 기준 (1명당, 원)</label><input id="c_outLine" type="number"></div>
       </div>
       <div class="row">
         <div><label class="f">정기 속보 간격(분, 0=끔)</label><input id="c_newsEveryMin" type="number" step="0.5"></div>
-        <div><label class="f">자동 퀴즈 간격(분, 0=끔)</label><input id="c_quizEveryMin" type="number" step="0.5"></div>
-        <div><label class="f">퀴즈 제한시간(초)</label><input id="c_quizSec" type="number"></div>
+        <div><label class="f">문제 범위당 팀 시도 횟수</label><input id="c_probTries" type="number"></div>
       </div>
       <div class="row">
-        <div><label class="f">퀴즈 보상</label><select id="c_quizMode"><option value="all">정답자 전원</option><option value="first">선착순</option></select></div>
-        <div><label class="f">선착순 인원</label><input id="c_quizTopN" type="number"></div>
         <div><label class="f">거래량 둔감도(1=기본, 2=덜 흔들림)</label><input id="c_impactScale" type="number" step="0.1"></div>
       </div>
       <div class="row">
@@ -167,14 +176,18 @@
         <div><label class="f">보상 선택 시간(초)</label><input id="c_rewardSec" type="number"></div>
         <div><label class="f">수수료 면제 시간(초)</label><input id="c_feeFreeSec" type="number"></div>
       </div>
+      <div class="row">
+        <div><label class="f">결투 보상: 진 사람 몫의 몇 %</label><input id="c_duelStealPct" type="number"></div>
+        <div><label class="f">토너먼트 라운드 길이(분, 0=자동)</label><input id="c_tourRoundMin" type="number" step="0.5"></div>
+      </div>
       <button class="btn primary" id="bCfg">설정 저장</button>
-      <span class="muted small" style="margin-left:8px">시작 자금은 새로 들어오는 사람부터 적용돼</span>
+      <span class="muted small" style="margin-left:8px">빚 한도·파산 기준은 팀 인원수만큼 곱해져. 시작 자금은 새로 들어오는 사람부터 적용돼</span>
     </div>
 
     <!-- 참가자 -->
     <div class="card" style="grid-column: 1 / -1">
-      <h2>👥 참가자 <input id="pSearch" placeholder="이름 검색" style="width:200px;padding:6px 10px;font-size:13px"></h2>
-      <div class="scroll"><table><thead><tr><th>#</th><th>이름</th><th class="r">총자산</th><th class="r">현금</th><th>아이템</th><th>상태</th><th>관리</th></tr></thead><tbody id="pTable"></tbody></table></div>
+      <h2>👥 팀 <input id="pSearch" placeholder="팀/이름 검색" style="width:200px;padding:6px 10px;font-size:13px"></h2>
+      <div class="scroll"><table><thead><tr><th>#</th><th>팀</th><th>팀원 (누르면 추방)</th><th class="r">수익률</th><th class="r">총자산</th><th class="r">현금</th><th>아이템</th><th>상태</th><th>관리</th></tr></thead><tbody id="pTable"></tbody></table></div>
     </div>
 
     <div class="card">
@@ -195,7 +208,7 @@
   <button class="btn ghost tiny" id="pjExit">나가기 (Esc)</button>
   <div class="body" id="pjBody">
     <div class="panel"><h2>시세</h2><div id="pjStocks"></div></div>
-    <div class="panel"><h2>🏆 실시간 랭킹 TOP 10</h2><div id="pjRank"></div></div>
+    <div class="panel"><div id="pjRank"></div></div>
   </div>
   <div class="ticker" id="pjTicker">📰 속보 대기 중…</div>
   <div id="projOverlay" class="hidden"><div class="box" id="pjOv"></div></div>

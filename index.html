@@ -15,9 +15,11 @@
   <div class="box">
     <div class="logo">📈</div>
     <h1 id="joinTitle">모의 주식 투자</h1>
-    <p class="muted">닉네임을 정하고 입장해줘</p>
+    <p class="muted">닉네임이랑 팀 번호를 쓰고 입장해줘<br><span class="small">같은 팀 번호끼리 돈·주식·아이템을 같이 써</span></p>
     <form id="joinForm" style="margin-top:22px">
       <input id="joinName" maxlength="12" placeholder="닉네임 (최대 12자)" autocomplete="off" style="text-align:center;font-size:18px;font-weight:700">
+      <label class="small muted" id="teamHint" style="display:block;margin:14px 0 6px">팀 번호</label>
+      <input id="joinTeam" type="number" inputmode="numeric" min="1" placeholder="예: 3" style="text-align:center;font-size:22px;font-weight:900">
       <button class="btn primary big" style="margin-top:12px" id="joinBtn">입장하기</button>
     </form>
     <p id="joinMsg" class="small" style="color:var(--up);min-height:20px;margin-top:12px"></p>
@@ -26,61 +28,73 @@
 
 <div id="loading" class="join"><div class="box"><div class="logo">⏳</div><p class="muted" id="loadMsg">연결 중…</p></div></div>
 
-<!-- 메인 -->
-<div id="appView" class="app hidden">
-  <div class="top">
-    <div class="top-row">
-      <div style="display:flex;gap:6px;align-items:center;min-width:0">
-        <span class="chip" id="statusChip">대기 중</span>
-        <span class="chip" id="rankChip">-위</span>
-      </div>
+<!-- 메인: 위쪽 요약 + 옆으로 넘기는 페이지 5개 + 아래 시트 탭 -->
+<div id="appView" class="app2 hidden">
+  <div class="topbar">
+    <div class="tb-row">
+      <span class="tb-team"><b id="teamName">-</b> <span class="muted" id="meName"></span></span>
       <span class="chip num" id="timeChip">--:--</span>
     </div>
-    <div class="muted small" style="margin-top:8px"><span id="meName"></span> · 총자산</div>
-    <div class="worth num" id="worth">0원</div>
-    <div class="worth-sub num">
-      <span id="worthPl">±0</span>
-      <span>현금 <b id="cash" style="color:var(--text)">0</b></span>
-      <span>주식 <b id="stockVal" style="color:var(--text)">0</b></span>
+    <div class="tb-row" style="margin-top:2px">
+      <span><span class="tb-worth num" id="worth">0원</span> <b class="num" id="worthPl"></b></span>
+      <span class="chip" id="rankChip">-위</span>
     </div>
   </div>
   <div id="alerts"></div>
-  <div class="newsbar" id="newsbar"><b>📰 속보</b><span id="newsText" class="muted">아직 속보 없음</span></div>
 
-  <!-- 시장 -->
-  <div id="tab-market" class="section">
-    <div class="card" style="padding:4px 12px" id="stockList"></div>
-    <p class="muted small" style="text-align:center;margin-top:10px">종목을 누르면 차트랑 매수/매도 화면이 나와</p>
+  <div id="pager" class="pager">
+    <!-- 1. 주식 -->
+    <section class="page" data-page="0">
+      <div id="tradeAlerts"></div>
+      <div class="newsbar" id="newsbar"><b>📰 속보</b><span id="newsText" class="muted">아직 속보 없음</span></div>
+      <div class="card" style="padding:4px 12px;margin-top:10px" id="stockList"></div>
+      <p class="muted small" style="text-align:center;margin-top:10px">종목을 누르면 차트랑 매수/매도 화면이 나와</p>
+    </section>
+
+    <!-- 2. 우리 팀 -->
+    <section class="page" data-page="1">
+      <div class="card" id="teamSummary"></div>
+      <div id="effects" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"></div>
+      <h3>팀 아이템</h3>
+      <div class="items" id="itemList"></div>
+      <h3>팀 보유 주식</h3>
+      <div class="card" style="padding:4px 12px" id="holdList"></div>
+      <h3>팀원</h3>
+      <div class="card" id="memberBox"></div>
+      <h3>팀 활동 기록</h3>
+      <div class="card small" id="teamLog" style="padding:6px 14px;line-height:1.5"></div>
+    </section>
+
+    <!-- 3. 결투 -->
+    <section class="page" data-page="2">
+      <div id="arenaMain"></div>
+      <h3>진행 중인 결투</h3>
+      <div id="duelList" class="card" style="padding:8px 12px"></div>
+    </section>
+
+    <!-- 4. 문제 -->
+    <section class="page" data-page="3">
+      <div class="muted small" id="probHead" style="margin-bottom:10px;line-height:1.6"></div>
+      <div id="probList"></div>
+    </section>
+
+    <!-- 5. 순위 -->
+    <section class="page" data-page="4">
+      <div id="tourBox"></div>
+      <h3>🏟 토너먼트 대진</h3>
+      <div id="tourMain"></div>
+      <h3>🏆 팀 순위 (수익률)</h3>
+      <div id="finalBanner"></div>
+      <div class="card" style="padding:4px 10px" id="rankList"></div>
+    </section>
   </div>
 
-  <!-- 내 자산 -->
-  <div id="tab-me" class="section hidden">
-    <div id="effects" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>
-    <h3>보유 주식</h3>
-    <div class="card" style="padding:4px 12px" id="holdList"></div>
-    <h3 style="margin-top:20px">아이템</h3>
-    <div class="items" id="itemList"></div>
-    <p class="muted small" style="margin-top:10px">퀴즈를 맞히거나 결투에서 이기면 아이템을 얻어.</p>
-  </div>
-
-  <!-- 아레나 -->
-  <div id="tab-arena" class="section hidden">
-    <div id="arenaMain"></div>
-    <h3 style="margin-top:20px">진행 중인 결투</h3>
-    <div id="duelList" class="card" style="padding:8px 12px"></div>
-  </div>
-
-  <!-- 랭킹 -->
-  <div id="tab-rank" class="section hidden">
-    <div id="finalBanner"></div>
-    <div class="card" style="padding:4px 10px" id="rankList"></div>
-  </div>
-
-  <nav class="tabs">
-    <button data-tab="market" class="on"><span class="ic">📈</span>시장</button>
-    <button data-tab="me"><span class="ic">💼</span>내 자산</button>
-    <button data-tab="arena"><span class="ic">⚔️</span>아레나<i class="pip hidden" id="arenaPip"></i></button>
-    <button data-tab="rank"><span class="ic">🏆</span>랭킹</button>
+  <nav class="sheettabs" id="sheettabs">
+    <button data-p="0" class="on">📈 주식</button>
+    <button data-p="1">👥 우리 팀</button>
+    <button data-p="2">⚔️ 결투<i class="pip hidden" id="arenaPip"></i></button>
+    <button data-p="3">📝 문제<i class="pip hidden" id="probPip"></i></button>
+    <button data-p="4">🏆 순위</button>
   </nav>
 </div>
 
@@ -114,25 +128,6 @@
   <div style="margin-top:10px" id="est"></div>
   <button class="btn big buy" style="margin-top:12px" id="tradeBtn">매수하기</button>
   <button class="btn ghost big" style="margin-top:8px" id="closeSheet">닫기</button>
-</div>
-
-<!-- 퀴즈 -->
-<div id="quizModal" class="modal-bg hidden">
-  <div class="modal">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <span class="chip" style="background:var(--gold);color:#2a1e00">🧠 퀴즈 <span id="qNo"></span></span>
-      <span class="chip num" id="qTime"></span>
-    </div>
-    <div class="timer"><div id="qBar"></div></div>
-    <div class="quiz-q" id="qText"></div>
-    <div id="qOpts"></div>
-    <form id="qForm" class="hidden" style="display:flex;gap:8px">
-      <input id="qInput" placeholder="정답 입력" autocomplete="off">
-      <button class="btn primary" style="flex:none">제출</button>
-    </form>
-    <p class="muted small" style="text-align:center;margin:12px 0 0">맞히면 아이템을 받아! 기회는 한 번뿐</p>
-    <button class="btn ghost" style="width:100%;margin-top:10px" id="qSkip">나중에 (창 닫기)</button>
-  </div>
 </div>
 
 <div id="confirmModal" class="modal-bg hidden">
