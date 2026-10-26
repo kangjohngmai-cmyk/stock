@@ -1,0 +1,37 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "config":      { ".read": "auth != null", ".write": "auth != null && auth.token.email === '26004@sshs.hs.kr'" },
+    "game":        { ".read": "auth != null", ".write": "auth != null && auth.token.email === '26004@sshs.hs.kr'" },
+    "market":      { ".read": "auth != null", ".write": "auth != null && auth.token.email === '26004@sshs.hs.kr'" },
+    "news":        { ".read": "auth != null", ".write": "auth != null && auth.token.email === '26004@sshs.hs.kr'" },
+    "leaderboard": { ".read": "auth != null", ".write": "auth != null && auth.token.email === '26004@sshs.hs.kr'" },
+    "quiz":        { ".read": "auth != null", ".write": "auth != null && auth.token.email === '26004@sshs.hs.kr'" },
+    "arena":       { ".read": "auth != null", ".write": "auth != null && auth.token.email === '26004@sshs.hs.kr'" },
+
+    "players": {
+      ".read": "auth != null && auth.token.email === '26004@sshs.hs.kr'",
+      ".write": "auth != null && auth.token.email === '26004@sshs.hs.kr'",
+      "$uid": { ".read": "auth != null && auth.uid === $uid" }
+    },
+    "inbox": {
+      ".read": "auth != null && auth.token.email === '26004@sshs.hs.kr'",
+      ".write": "auth != null && auth.token.email === '26004@sshs.hs.kr'",
+      "$uid": { ".read": "auth != null && auth.uid === $uid" }
+    },
+    "requests": {
+      ".read": "auth != null && auth.token.email === '26004@sshs.hs.kr'",
+      ".write": "auth != null && auth.token.email === '26004@sshs.hs.kr'",
+      "$rid": {
+        ".write": "auth != null && !data.exists() && newData.child('uid').val() === auth.uid",
+        ".validate": "newData.hasChildren(['uid', 'type']) && newData.child('type').isString() && newData.child('type').val().length < 20"
+      }
+    },
+    "admin": {
+      ".read": "auth != null && auth.token.email === '26004@sshs.hs.kr'",
+      ".write": "auth != null && auth.token.email === '26004@sshs.hs.kr'"
+    }
+  }
+}
