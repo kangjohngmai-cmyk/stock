@@ -348,8 +348,9 @@ export class Game {
     if (!dir) dir = rnd() < 0.5 ? 'up' : 'down';
     if (!strength) { const r = rnd(); strength = r < 0.5 ? 'S' : r < 0.85 ? 'M' : 'L'; }
     const [lo, hi] = STRENGTH[strength] || STRENGTH.M;
-    let mag = lo + rnd() * (hi - lo);
-    if (dir === 'down') mag = -mag;
+    let mag = (lo + rnd() * (hi - lo)) * (this.cfg.newsScale || 1);
+    mag = Math.min(mag, 0.9);
+    if (dir === 'down') mag = -Math.min(mag, 0.6);
     if (!text) text = pick((dir === 'up' ? NEWS_UP : NEWS_DOWN)[s]);
     return { s, mag, text };
   }
@@ -671,7 +672,7 @@ export class Game {
     const dt = TICK_MS / 60000;
     for (const st of STOCKS) {
       const m = this.mk[st.id];
-      const sig = st.vol / 100 * Math.sqrt(dt);
+      const sig = st.vol / 100 * (this.cfg.volScale || 1) * Math.sqrt(dt);
       let lf = Math.log(m.f) + sig * 0.6 * gauss();
       let lp = Math.log(m.p) + sig * 0.8 * gauss();
       lp += 0.04 * (lf - lp);

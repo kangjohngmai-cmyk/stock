@@ -34,6 +34,8 @@ export const DEFAULT_CFG = {
   durationMin: 60,
   newsEveryMin: 4,
   probTries: 3,         // 문제 범위마다 팀당 시도 횟수
+  volScale: 2,          // 주가 변동성 배율 (1 = 처음 버전, 클수록 크게 출렁임)
+  newsScale: 1.5,       // 속보 세기 배율
   impactScale: 1,       // 거래량 영향 배율의 역수(클수록 덜 흔들림)
   duelRoundSec: 20,
   rewardSec: 30,
